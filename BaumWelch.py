@@ -34,11 +34,21 @@ def _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initia
 
 def _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations):
     alphas, betas = _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
+    gammas = np.zeros((number_Of_States, corpus_Length), dtype=np.float)
+    xis = np.zeros((number_Of_States, number_Of_States, corpus_Length), dtype=np.float)
 
-    # for i in range(len(alphas)):
-    #     for t in range(len(alphas[i])):
-    #         print(i, t, alphas[i][t])
-    # exit(1)
+    for t in range(len(alphas[0])):
+        sum_Over_J_atj_btj = 0
+        for j in range(len(alphas)):
+            sum_Over_J_atj_btj = sum_Over_J_atj_btj + (alphas[j , t] * betas[j, t])
+        for i in range(len(alphas)):
+            # γt(i) = αt(i)*βt(i) / sum_j (αt(j)*βt(j))
+            gammas[i, t] = (alphas[i, t] * betas[i, t]) / sum_Over_J_atj_btj
+            for j in range(len(alphas)):
+                prob_O_tplus1_Given_s_tplus1_j = state_Output_Distributions[j, observations[t + 1] - 1]
+                prob_s_tplus1_j_Given_s_t_i = transition_Mat[i, j]
+                xis[i, j, t] = (alphas[i, t] * betas[j, t + 1] * prob_s_tplus1_j_Given_s_t_i * prob_O_tplus1_Given_s_tplus1_j) / sum_Over_J_atj_btj
+    return gammas, xis
 
 def _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations):
     gammas, xis = _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
