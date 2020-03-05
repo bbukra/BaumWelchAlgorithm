@@ -41,7 +41,8 @@ def _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initia
 def _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations):
     number_Of_States = len(initial_State_Distributions)
     corpus_Length = len(observations)
-    alphas, betas = _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
+    alphas, betas = \
+        _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
     gammas = np.zeros((number_Of_States, corpus_Length), dtype=np.float)
     xis = np.zeros((number_Of_States, number_Of_States, corpus_Length - 1), dtype=np.float)
 
@@ -50,13 +51,14 @@ def _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_D
         for j in range(len(alphas)):
             sum_Over_J_atj_btj = sum_Over_J_atj_btj + (alphas[j , t] * betas[j, t])
         for i in range(len(alphas)):
-            # γt(i) = αt(i)*βt(i) / sum_j (αt(j)*βt(j))
             gammas[i, t] = (alphas[i, t] * betas[i, t]) / sum_Over_J_atj_btj
             if (t < len(alphas[0]) - 1):
                 for j in range(len(alphas)):
-                    prob_O_tplus1_Given_s_tplus1_j = state_Output_Distributions[observations[t + 1] - 1, j] ## maybe this should be [obs, j]
+                    prob_O_tplus1_Given_s_tplus1_j = state_Output_Distributions[observations[t + 1] - 1, j]
                     prob_s_tplus1_j_Given_s_t_i = transition_Mat[i, j]
-                    xis[i, j, t] = (alphas[i, t] * betas[j, t + 1] * prob_s_tplus1_j_Given_s_t_i * prob_O_tplus1_Given_s_tplus1_j) / sum_Over_J_atj_btj
+                    xis[i, j, t] = (alphas[i, t] * betas[j, t + 1]
+                                    * prob_s_tplus1_j_Given_s_t_i
+                                    * prob_O_tplus1_Given_s_tplus1_j) / sum_Over_J_atj_btj
     return gammas, xis
 
 def _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations):
@@ -64,7 +66,8 @@ def _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Dis
     xis = [0] * (len(observations))    # initialize an array of size L
     for i in range(len(observations)):
         # Each entry of these arrays is an array of size n_l (sequence length)
-        gammas[i], xis[i] = _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations[i])
+        gammas[i], xis[i] = \
+            _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations[i])
     return gammas, xis
 
 global prev_Transition_Probs_MLE
@@ -110,8 +113,9 @@ def _update_State_Output_Distributions(state_Output_Distributions, observations,
                 for t in range(len(observations[l])):
                     indicator_Index_t_In_Observation_Seq_l_is_k = 1 if observations[l, t] == k else 0
                     sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq = \
-                        sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq + \
-                        (gammas[l][i][t]) * indicator_Index_t_In_Observation_Seq_l_is_k
+                        sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq \
+                        + (gammas[l][i][t]) * indicator_Index_t_In_Observation_Seq_l_is_k
+
             state_Output_Distributions[k - 1, i] = sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq
             sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq = 0
     return state_Output_Distributions
@@ -131,11 +135,16 @@ def _perform_Mstep(transition_Mat, state_Output_Distributions, initial_State_Dis
     L = len(observations)
 
     initial_State_Distributions = _update_Initial_State_Distribution(initial_State_Distributions, gammas, L)
+
     transition_Mat = _update_Transition_Mat(transition_Mat, observations, xis, L, number_Of_States)
+
     _update_Transition_Probs_MLE(transition_Mat, number_Of_States)
-    state_Output_Distributions = _update_State_Output_Distributions(state_Output_Distributions, observations, gammas, L, number_Of_States, m)
+
+    state_Output_Distributions = \
+        _update_State_Output_Distributions(state_Output_Distributions, observations, gammas, L, number_Of_States, m)
+
     _update_Output_Probs_MLE(state_Output_Distributions, number_Of_States, m)
-    # print(initial_State_Distributions, "\n\n", transition_Mat, "\n\n", state_Output_Distributions, "\n\n\n\n", transition_Probs_MLE, "\n\n", prev_Transition_Probs_MLE, "\n\n", output_Probs_MLE, "\n\n", prev_Output_Probs_MLE)
+
     return initial_State_Distributions, transition_Mat, state_Output_Distributions
 
 def _calc_Transition_MLE_Difference(number_Of_States):
@@ -145,7 +154,8 @@ def _calc_Transition_MLE_Difference(number_Of_States):
 
     for i in range(number_Of_States):
         for j in range(number_Of_States):
-            transition_MLE_Difference = transition_MLE_Difference + abs(transition_Probs_MLE[i, j] - prev_Transition_Probs_MLE[i, j])
+            transition_MLE_Difference = transition_MLE_Difference \
+                                        + abs(transition_Probs_MLE[i, j] - prev_Transition_Probs_MLE[i, j])
     return transition_MLE_Difference
 
 def _calc_Output_MLE_Difference(number_Of_States, m):
@@ -155,7 +165,8 @@ def _calc_Output_MLE_Difference(number_Of_States, m):
 
     for i in range(number_Of_States):
         for j in range(m):
-            output_MLE_Difference = output_MLE_Difference + abs(output_Probs_MLE[j, i] - prev_Output_Probs_MLE[j, i])
+            output_MLE_Difference = output_MLE_Difference \
+                                    + abs(output_Probs_MLE[j, i] - prev_Output_Probs_MLE[j, i])
     return output_MLE_Difference
 
 def _converged(number_Of_States, m):
@@ -163,7 +174,8 @@ def _converged(number_Of_States, m):
     transition_MLE_Difference = _calc_Transition_MLE_Difference(number_Of_States)
     output_MLE_Difference = _calc_Output_MLE_Difference(number_Of_States, m)
 
-    if (transition_MLE_Difference < TOLERANCE and output_MLE_Difference < TOLERANCE):
+    if (transition_MLE_Difference < TOLERANCE
+            and output_MLE_Difference < TOLERANCE):
         return True
     else:
         return False
@@ -183,15 +195,22 @@ def BaumWelchAlgorithm(observations, m, num_Of_States = 3):
 
     # Data initialization:
     observations = np.array(observations)
-    initial_State_Distributions = np.array([1/num_Of_States] * num_Of_States, dtype=np.float)
+    for i in range(L):
+        observations[i] = np.array(observations[i], dtype=np.float)
+
     transition_Mat = np.array([[1/num_Of_States] * num_Of_States] * num_Of_States, dtype=np.float)
-    state_Output_Distributions = np.array([[1/m] * num_Of_States] * m, dtype=np.float)
+    initial_State_Distributions = np.array([1/num_Of_States] * num_Of_States, dtype=np.float)
+    state_Output_Distributions  = np.array([[1/m] * num_Of_States] * m, dtype=np.float)
+
     transition_Probs_MLE = np.array([[0] * num_Of_States] * num_Of_States, dtype=np.float)
-    output_Probs_MLE = np.array([[0] * num_Of_States] * m, dtype=np.float)
+    output_Probs_MLE     = np.array([[0] * num_Of_States] * m, dtype=np.float)
+
 
     while(True):
-        gammas, xis = _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
-        initial_State_Distributions, transition_Mat, state_Output_Distributions = _perform_Mstep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations, gammas, xis, m)
+        gammas, xis = \
+            _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
+        initial_State_Distributions, transition_Mat, state_Output_Distributions = \
+            _perform_Mstep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations, gammas, xis, m)
         print(initial_State_Distributions, "\n\n", transition_Mat, "\n\n", state_Output_Distributions, "\n\n\n\n",
               transition_Probs_MLE, "\n\n", prev_Transition_Probs_MLE, "\n\n", output_Probs_MLE, "\n\n",
               prev_Output_Probs_MLE)
@@ -200,4 +219,4 @@ def BaumWelchAlgorithm(observations, m, num_Of_States = 3):
 
     return initial_State_Distributions, transition_Mat, state_Output_Distributions
 
-BaumWelchAlgorithm([[1, 2, 3, 3, 4]], 4)
+BaumWelchAlgorithm([[1, 2, 3, 4]], 4)
