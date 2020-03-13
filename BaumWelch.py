@@ -1,222 +1,226 @@
 import numpy as np
 from copy import deepcopy
 """
-    This is an implementation of the Baum Welch Algorithm as presented in:
+    this is an implementation of the baum welch algorithm as presented in:
     https://www.cs.bgu.ac.il/~inabd171/wiki.files/lecture20_handouts.pdf
-    A lecture slide by Prof. Aryeh Kontorovich and Sivan Sabato from BGU
+    a lecture slide by prof. aryeh kontorovich and sivan sabato from bgu
 """
 
-def _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initial_State_Distributions,  _U):
-    corpus_Length = len(_U)
-    number_Of_States = len(transition_Mat)
+def _do_forward_backward_pass(transition_mat, state_output_distributions, initial_state_distributions,  observations_seq):
+    corpus_length = len(observations_seq)
+    number_of_states = len(transition_mat)
 
-    alphas = np.zeros((number_Of_States, corpus_Length), dtype=np.float)
-    betas = np.zeros((number_Of_States, corpus_Length), dtype=np.float)
-    rescaling_Coeffs = np.array([0] * corpus_Length)
+    alphas = np.zeros((number_of_states, corpus_length), dtype=np.float)
+    betas = np.zeros((number_of_states, corpus_length), dtype=np.float)
+    rescaling_coeffs = np.array([0] * corpus_length)
 
-    alphas[:, 0] = np.multiply(np.transpose(state_Output_Distributions[_U[0] - 1]), initial_State_Distributions)
-    rescaling_Coeffs[0] = 1 / np.sum(alphas[:, 0])
-    alphas[:, 0] = rescaling_Coeffs[0] * alphas[:, 0]
-    for t in range(1, corpus_Length):
+    alphas[:, 0] = np.multiply(np.transpose(state_output_distributions[int(observations_seq[0] - 1)]), initial_state_distributions)
+    rescaling_coeffs[0] = 1 / np.sum(alphas[:, 0])
+    alphas[:, 0] = rescaling_coeffs[0] * alphas[:, 0]
+    for t in range(1, corpus_length):
         alphas[:, t] = \
             np.multiply(
-                np.matmul(transition_Mat, alphas[:,t-1]),
-                np.transpose(state_Output_Distributions[(_U[t] - 1), :]))
-        rescaling_Coeffs[t] = 1 / np.sum(alphas[:, t])
-        alphas[:, t] = rescaling_Coeffs[t] * alphas[:, t]
+                np.matmul(transition_mat, alphas[:,t-1]),
+                np.transpose(state_output_distributions[int(observations_seq[t] - 1), :]))
+        rescaling_coeffs[t] = 1 / np.sum(alphas[:, t])
+        alphas[:, t] = rescaling_coeffs[t] * alphas[:, t]
 
-    betas[:, corpus_Length - 1] = np.array([1] * number_Of_States)
-    betas[:, corpus_Length - 1] = rescaling_Coeffs[corpus_Length - 1] * betas[:, corpus_Length - 1]
+    betas[:, corpus_length - 1] = np.array([1] * number_of_states)
+    betas[:, corpus_length - 1] = rescaling_coeffs[corpus_length - 1] * betas[:, corpus_length - 1]
 
-    for t in reversed(range(0, corpus_Length - 1)):
+    for t in reversed(range(0, corpus_length - 1)):
         betas[:, t] = \
             np.multiply(
                 np.matmul(
-                    np.transpose(transition_Mat),
-                    np.transpose(state_Output_Distributions[_U[t + 1] - 1, :])),
+                    np.transpose(transition_mat),
+                    np.transpose(state_output_distributions[int(observations_seq[t + 1] - 1), :])),
                 betas[:, t + 1])
-        betas[:, t] = rescaling_Coeffs[t] * betas[:, t]
+        betas[:, t] = rescaling_coeffs[t] * betas[:, t]
     return alphas, betas
 
-def _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations):
-    number_Of_States = len(initial_State_Distributions)
-    corpus_Length = len(observations)
+def _calc_gammas_xis(transition_mat, state_output_distributions, initial_state_distributions, observations):
+    number_of_states = len(initial_state_distributions)
+    corpus_length = len(observations)
     alphas, betas = \
-        _do_Forward_Backward_Pass(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
-    gammas = np.zeros((number_Of_States, corpus_Length), dtype=np.float)
-    xis = np.zeros((number_Of_States, number_Of_States, corpus_Length - 1), dtype=np.float)
+        _do_forward_backward_pass(transition_mat, state_output_distributions, initial_state_distributions, observations)
+    gammas = np.zeros((number_of_states, corpus_length), dtype=np.float)
+    xis = np.zeros((number_of_states, number_of_states, corpus_length - 1), dtype=np.float)
 
     for t in range(len(alphas[0])):
-        sum_Over_J_atj_btj = 0
+        sum_over_j_atj_btj = 0
         for j in range(len(alphas)):
-            sum_Over_J_atj_btj = sum_Over_J_atj_btj + (alphas[j , t] * betas[j, t])
+            sum_over_j_atj_btj = sum_over_j_atj_btj + (alphas[j , t] * betas[j, t])
         for i in range(len(alphas)):
-            gammas[i, t] = (alphas[i, t] * betas[i, t]) / sum_Over_J_atj_btj
+            gammas[i, t] = (alphas[i, t] * betas[i, t]) / sum_over_j_atj_btj
             if (t < len(alphas[0]) - 1):
                 for j in range(len(alphas)):
-                    prob_O_tplus1_Given_s_tplus1_j = state_Output_Distributions[observations[t + 1] - 1, j]
-                    prob_s_tplus1_j_Given_s_t_i = transition_Mat[i, j]
+                    prob_o_tplus1_given_s_tplus1_j = state_output_distributions[int(observations[t + 1] - 1), j]
+                    prob_s_tplus1_j_given_s_t_i = transition_mat[i, j]
                     xis[i, j, t] = (alphas[i, t] * betas[j, t + 1]
-                                    * prob_s_tplus1_j_Given_s_t_i
-                                    * prob_O_tplus1_Given_s_tplus1_j) / sum_Over_J_atj_btj
+                                    * prob_s_tplus1_j_given_s_t_i
+                                    * prob_o_tplus1_given_s_tplus1_j) / sum_over_j_atj_btj
     return gammas, xis
 
-def _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations):
-    gammas = [0] * (len(observations)) # initialize an array of size L
-    xis = [0] * (len(observations))    # initialize an array of size L
+def _perform_estep(transition_mat, state_output_distributions, initial_state_distributions, observations):
+    gammas = [0] * (len(observations)) # initialize an array of size l
+    xis = [0] * (len(observations))    # initialize an array of size l
     for i in range(len(observations)):
-        # Each entry of these arrays is an array of size n_l (sequence length)
+        # each entry of these arrays is an array of size n_l (sequence length)
         gammas[i], xis[i] = \
-            _calc_Gammas_Xis(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations[i])
+            _calc_gammas_xis(transition_mat, state_output_distributions, initial_state_distributions, observations[i])
     return gammas, xis
 
-global prev_Transition_Probs_MLE
-global prev_Output_Probs_MLE
-global transition_Probs_MLE
-global output_Probs_MLE
+global prev_transition_probs_mle
+global prev_output_probs_mle
+global transition_probs_mle
+global output_probs_mle
 
-def _update_Initial_State_Distribution(initial_State_Distributions, gammas, L):
-    sum_Gammas_l_i = 0
-    for i in range(len(initial_State_Distributions)):
-        for l in range(L):
-            sum_Gammas_l_i = sum_Gammas_l_i + gammas[l][i][0]
-        initial_State_Distributions[i] = (1 / L) * sum_Gammas_l_i
-        sum_Gammas_l_i = 0
-    return initial_State_Distributions
+def _update_initial_state_distribution(initial_state_distributions, gammas, l):
+    sum_gammas_l_i = 0
+    for i in range(len(initial_state_distributions)):
+        for l in range(l):
+            sum_gammas_l_i = sum_gammas_l_i + gammas[l][i][0]
+        initial_state_distributions[i] = (1 / l) * sum_gammas_l_i
+        sum_gammas_l_i = 0
+    return initial_state_distributions
 
-def _update_Transition_Mat(transition_Mat, observations, xis, L, number_Of_States):
-    sum_Xis_l_i_j_t = 0
-    for i in range(number_Of_States):
-        for j in range(number_Of_States):
-            for l in range(L):
+def _update_transition_mat(transition_mat, observations, xis, l, number_of_states):
+    sum_xis_l_i_j_t = 0
+    for i in range(number_of_states):
+        for j in range(number_of_states):
+            for l in range(l):
                 for t in range(len(observations[l]) - 1):
-                    sum_Xis_l_i_j_t = sum_Xis_l_i_j_t + xis[l][i][j][t]
-            transition_Mat[i, j] = sum_Xis_l_i_j_t
-            sum_Xis_l_i_j_t = 0
-    return transition_Mat
+                    sum_xis_l_i_j_t = sum_xis_l_i_j_t + xis[l][i][j][t]
+            transition_mat[i, j] = sum_xis_l_i_j_t
+            sum_xis_l_i_j_t = 0
+    return transition_mat
 
-def _update_Transition_Probs_MLE(transition_Mat, number_Of_States):
-    global prev_Transition_Probs_MLE
-    global transition_Probs_MLE
+def _update_transition_probs_mle(transition_mat, number_of_states):
+    global prev_transition_probs_mle
+    global transition_probs_mle
 
-    prev_Transition_Probs_MLE = deepcopy(transition_Probs_MLE)
-    for i in range(number_Of_States):
-        row_Sum = np.sum(transition_Mat[:, i])
-        for j in range(number_Of_States):
-            transition_Probs_MLE[i][j] = transition_Mat[i, j] / row_Sum
+    prev_transition_probs_mle = deepcopy(transition_probs_mle)
+    for i in range(number_of_states):
+        row_sum = np.sum(transition_mat[:, i])
+        for j in range(number_of_states):
+            transition_probs_mle[i][j] = transition_mat[i, j] / row_sum
 
-def _update_State_Output_Distributions(state_Output_Distributions, observations, gammas, L, number_Of_States, m):
-    sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq = 0
-    for i in range(number_Of_States):
+def _update_state_output_distributions(state_output_distributions, observations, gammas, l, number_of_states, m):
+    sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq = 0
+    for i in range(number_of_states):
         for k in range(1, m + 1):
-            for l in range(L):
+            for l in range(l):
                 for t in range(len(observations[l])):
-                    indicator_Index_t_In_Observation_Seq_l_is_k = 1 if observations[l, t] == k else 0
-                    sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq = \
-                        sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq \
-                        + (gammas[l][i][t]) * indicator_Index_t_In_Observation_Seq_l_is_k
+                    indicator_index_t_in_observation_seq_l_is_k = 1 if observations[l][t] == k else 0
+                    sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq = \
+                        sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq \
+                        + (gammas[l][i][t]) * indicator_index_t_in_observation_seq_l_is_k
 
-            state_Output_Distributions[k - 1, i] = sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq
-            sum_Gammas_t_l_i_Where_k_Is_Observed_At_Index_t_In_Observation_Seq = 0
-    return state_Output_Distributions
+            state_output_distributions[k - 1, i] = sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq
+            sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq = 0
+    return state_output_distributions
 
-def _update_Output_Probs_MLE(state_Output_Distributions, number_Of_States, m):
-    global prev_Output_Probs_MLE
-    global output_Probs_MLE
+def _update_output_probs_mle(state_output_distributions, number_of_states, m):
+    global prev_output_probs_mle
+    global output_probs_mle
 
-    prev_Output_Probs_MLE = deepcopy(output_Probs_MLE)
-    for i in range(number_Of_States):
-        row_Sum = np.sum(state_Output_Distributions[:, i])
+    prev_output_probs_mle = deepcopy(output_probs_mle)
+    for i in range(number_of_states):
+        row_sum = np.sum(state_output_distributions[:, i])
         for k in range(m):
-            output_Probs_MLE[k][i] = state_Output_Distributions[k, i] / row_Sum
+            output_probs_mle[k][i] = state_output_distributions[k, i] / row_sum
 
-def _perform_Mstep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations, gammas, xis, m):
-    number_Of_States = len(initial_State_Distributions)
-    L = len(observations)
+def _perform_mstep(transition_mat, state_output_distributions, initial_state_distributions, observations, gammas, xis, m):
+    number_of_states = len(initial_state_distributions)
+    l = len(observations)
 
-    initial_State_Distributions = _update_Initial_State_Distribution(initial_State_Distributions, gammas, L)
+    initial_state_distributions = _update_initial_state_distribution(initial_state_distributions, gammas, l)
 
-    transition_Mat = _update_Transition_Mat(transition_Mat, observations, xis, L, number_Of_States)
+    transition_mat = _update_transition_mat(transition_mat, observations, xis, l, number_of_states)
 
-    _update_Transition_Probs_MLE(transition_Mat, number_Of_States)
+    _update_transition_probs_mle(transition_mat, number_of_states)
 
-    state_Output_Distributions = \
-        _update_State_Output_Distributions(state_Output_Distributions, observations, gammas, L, number_Of_States, m)
+    state_output_distributions = \
+        _update_state_output_distributions(state_output_distributions, observations, gammas, l, number_of_states, m)
 
-    _update_Output_Probs_MLE(state_Output_Distributions, number_Of_States, m)
+    _update_output_probs_mle(state_output_distributions, number_of_states, m)
 
-    return initial_State_Distributions, transition_Mat, state_Output_Distributions
+    return initial_state_distributions, transition_mat, state_output_distributions
 
-def _calc_Transition_MLE_Difference(number_Of_States):
-    global transition_Probs_MLE
-    global prev_Transition_Probs_MLE
-    transition_MLE_Difference = 0
+def _calc_transition_mle_difference(number_of_states):
+    global transition_probs_mle
+    global prev_transition_probs_mle
+    transition_mle_difference = 0
 
-    for i in range(number_Of_States):
-        for j in range(number_Of_States):
-            transition_MLE_Difference = transition_MLE_Difference \
-                                        + abs(transition_Probs_MLE[i, j] - prev_Transition_Probs_MLE[i, j])
-    return transition_MLE_Difference
+    for i in range(number_of_states):
+        for j in range(number_of_states):
+            transition_mle_difference = transition_mle_difference \
+                                        + abs(transition_probs_mle[i, j] - prev_transition_probs_mle[i, j])
+    return transition_mle_difference
 
-def _calc_Output_MLE_Difference(number_Of_States, m):
-    global output_Probs_MLE
-    global prev_Output_Probs_MLE
-    output_MLE_Difference = 0
+def _calc_output_mle_difference(number_of_states, m):
+    global output_probs_mle
+    global prev_output_probs_mle
+    output_mle_difference = 0
 
-    for i in range(number_Of_States):
+    for i in range(number_of_states):
         for j in range(m):
-            output_MLE_Difference = output_MLE_Difference \
-                                    + abs(output_Probs_MLE[j, i] - prev_Output_Probs_MLE[j, i])
-    return output_MLE_Difference
+            output_mle_difference = output_mle_difference \
+                                    + abs(output_probs_mle[j, i] - prev_output_probs_mle[j, i])
+    return output_mle_difference
 
-def _converged(number_Of_States, m):
-    TOLERANCE = 0.005
-    transition_MLE_Difference = _calc_Transition_MLE_Difference(number_Of_States)
-    output_MLE_Difference = _calc_Output_MLE_Difference(number_Of_States, m)
+def _converged(number_of_states, m):
+    tolerance = 0.005
+    transition_mle_difference = _calc_transition_mle_difference(number_of_states)
+    output_mle_difference = _calc_output_mle_difference(number_of_states, m)
 
-    if (transition_MLE_Difference < TOLERANCE
-            and output_MLE_Difference < TOLERANCE):
-        return True
+    if (transition_mle_difference < tolerance
+            and output_mle_difference < tolerance):
+        return true
     else:
-        return False
+        return false
 
 
 """
-Input: L sequences of observations;
+input: l sequences of observations;
        m - the maximum value of an observation
-       The number of states in the HMM;
-Output: Estimation for HMM parameters
+       the number of states in the hmm;
+output: estimation for hmm parameters
 """
 
-def BaumWelchAlgorithm(observations, m, num_Of_States = 3):
-    global transition_Probs_MLE
-    global output_Probs_MLE
-    L = len(observations)
+def baumwelchalgorithm(observations, m, num_of_states = 3):
+    global transition_probs_mle
+    global output_probs_mle
+    l = len(observations)
 
-    # Data initialization:
+    # data initialization:
     observations = np.array(observations)
-    for i in range(L):
+    for i in range(l):
         observations[i] = np.array(observations[i], dtype=np.float)
 
-    transition_Mat = np.array([[1/num_Of_States] * num_Of_States] * num_Of_States, dtype=np.float)
-    initial_State_Distributions = np.array([1/num_Of_States] * num_Of_States, dtype=np.float)
-    state_Output_Distributions  = np.array([[1/m] * num_Of_States] * m, dtype=np.float)
+    transition_mat = np.array([[1/num_of_states] * num_of_states] * num_of_states, dtype=np.float)
+    initial_state_distributions = np.array([1/num_of_states] * num_of_states, dtype=np.float)
+    state_output_distributions  = np.array([[1/m] * num_of_states] * m, dtype=np.float)
 
-    transition_Probs_MLE = np.array([[0] * num_Of_States] * num_Of_States, dtype=np.float)
-    output_Probs_MLE     = np.array([[0] * num_Of_States] * m, dtype=np.float)
+    transition_probs_mle = np.array([[0] * num_of_states] * num_of_states, dtype=np.float)
+    output_probs_mle     = np.array([[0] * num_of_states] * m, dtype=np.float)
 
 
-    while(True):
+    while(true):
         gammas, xis = \
-            _perform_Estep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations)
-        initial_State_Distributions, transition_Mat, state_Output_Distributions = \
-            _perform_Mstep(transition_Mat, state_Output_Distributions, initial_State_Distributions, observations, gammas, xis, m)
-        print(initial_State_Distributions, "\n\n", transition_Mat, "\n\n", state_Output_Distributions, "\n\n\n\n",
-              transition_Probs_MLE, "\n\n", prev_Transition_Probs_MLE, "\n\n", output_Probs_MLE, "\n\n",
-              prev_Output_Probs_MLE)
-        if(_converged(num_Of_States, m)):
+            _perform_estep(transition_mat, state_output_distributions, initial_state_distributions, observations)
+        initial_state_distributions, transition_mat, state_output_distributions = \
+            _perform_mstep(transition_mat, state_output_distributions, initial_state_distributions, observations, gammas, xis, m)
+        print("initial_state_distributions   :\n", initial_state_distributions   , "\n\n",
+              "transition_mat                :\n", transition_mat                , "\n\n",
+              "state_output_distributions    :\n", state_output_distributions    , "\n\n\n\n",
+              "transition_probs_mle          :\n", transition_probs_mle          , "\n\n",
+              "prev_transition_probs_mle     :\n", prev_transition_probs_mle     , "\n\n",
+              "output_probs_mle              :\n", output_probs_mle              , "\n\n",
+              "prev_output_probs_mle         :\n", prev_output_probs_mle         )
+        if(_converged(num_of_states, m)):
             break
 
-    return initial_State_Distributions, transition_Mat, state_Output_Distributions
+    return initial_state_distributions, transition_mat, state_output_distributions
 
-BaumWelchAlgorithm([[1, 2, 3, 4]], 4)
+baumwelchalgorithm([[2, 2, 3, 4]], 4)
