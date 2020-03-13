@@ -75,20 +75,20 @@ global prev_output_probs_mle
 global transition_probs_mle
 global output_probs_mle
 
-def _update_initial_state_distribution(initial_state_distributions, gammas, l):
+def _update_initial_state_distribution(initial_state_distributions, gammas, L):
     sum_gammas_l_i = 0
     for i in range(len(initial_state_distributions)):
-        for l in range(l):
+        for l in range(L):
             sum_gammas_l_i = sum_gammas_l_i + gammas[l][i][0]
-        initial_state_distributions[i] = (1 / l) * sum_gammas_l_i
+        initial_state_distributions[i] = (1 / L) * sum_gammas_l_i
         sum_gammas_l_i = 0
     return initial_state_distributions
 
-def _update_transition_mat(transition_mat, observations, xis, l, number_of_states):
+def _update_transition_mat(transition_mat, observations, xis, L, number_of_states):
     sum_xis_l_i_j_t = 0
     for i in range(number_of_states):
         for j in range(number_of_states):
-            for l in range(l):
+            for l in range(L):
                 for t in range(len(observations[l]) - 1):
                     sum_xis_l_i_j_t = sum_xis_l_i_j_t + xis[l][i][j][t]
             transition_mat[i, j] = sum_xis_l_i_j_t
@@ -105,11 +105,11 @@ def _update_transition_probs_mle(transition_mat, number_of_states):
         for j in range(number_of_states):
             transition_probs_mle[i][j] = transition_mat[i, j] / row_sum
 
-def _update_state_output_distributions(state_output_distributions, observations, gammas, l, number_of_states, m):
+def _update_state_output_distributions(state_output_distributions, observations, gammas, L, number_of_states, m):
     sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq = 0
     for i in range(number_of_states):
         for k in range(1, m + 1):
-            for l in range(l):
+            for l in range(L):
                 for t in range(len(observations[l])):
                     indicator_index_t_in_observation_seq_l_is_k = 1 if observations[l][t] == k else 0
                     sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq = \
@@ -132,16 +132,16 @@ def _update_output_probs_mle(state_output_distributions, number_of_states, m):
 
 def _perform_mstep(transition_mat, state_output_distributions, initial_state_distributions, observations, gammas, xis, m):
     number_of_states = len(initial_state_distributions)
-    l = len(observations)
+    L = len(observations)
 
-    initial_state_distributions = _update_initial_state_distribution(initial_state_distributions, gammas, l)
+    initial_state_distributions = _update_initial_state_distribution(initial_state_distributions, gammas, L)
 
-    transition_mat = _update_transition_mat(transition_mat, observations, xis, l, number_of_states)
+    transition_mat = _update_transition_mat(transition_mat, observations, xis, L, number_of_states)
 
     _update_transition_probs_mle(transition_mat, number_of_states)
 
     state_output_distributions = \
-        _update_state_output_distributions(state_output_distributions, observations, gammas, l, number_of_states, m)
+        _update_state_output_distributions(state_output_distributions, observations, gammas, L, number_of_states, m)
 
     _update_output_probs_mle(state_output_distributions, number_of_states, m)
 
@@ -176,9 +176,9 @@ def _converged(number_of_states, m):
 
     if (transition_mle_difference < tolerance
             and output_mle_difference < tolerance):
-        return true
+        return True
     else:
-        return false
+        return False
 
 
 """
@@ -188,14 +188,14 @@ input: l sequences of observations;
 output: estimation for hmm parameters
 """
 
-def baumwelchalgorithm(observations, m, num_of_states = 3):
+def baum_welch_algorithm(observations, m, num_of_states = 3):
     global transition_probs_mle
     global output_probs_mle
-    l = len(observations)
+    L = len(observations)
 
     # data initialization:
     observations = np.array(observations)
-    for i in range(l):
+    for i in range(L):
         observations[i] = np.array(observations[i], dtype=np.float)
 
     transition_mat = np.array([[1/num_of_states] * num_of_states] * num_of_states, dtype=np.float)
@@ -206,7 +206,7 @@ def baumwelchalgorithm(observations, m, num_of_states = 3):
     output_probs_mle     = np.array([[0] * num_of_states] * m, dtype=np.float)
 
 
-    while(true):
+    while(True):
         gammas, xis = \
             _perform_estep(transition_mat, state_output_distributions, initial_state_distributions, observations)
         initial_state_distributions, transition_mat, state_output_distributions = \
@@ -223,4 +223,4 @@ def baumwelchalgorithm(observations, m, num_of_states = 3):
 
     return initial_state_distributions, transition_mat, state_output_distributions
 
-baumwelchalgorithm([[2, 2, 3, 4]], 4)
+baum_welch_algorithm([[2, 2, 3, 4]], 4)
