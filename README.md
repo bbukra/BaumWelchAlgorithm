@@ -1,4 +1,4 @@
-#BaumWelch Algorithm implementation
+## BaumWelch Algorithm implementation
 
 #### How to use:
 
