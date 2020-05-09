@@ -1,10 +1,36 @@
 import numpy as np
 from copy import deepcopy
+import random
 """
     this is an implementation of the baum welch algorithm as presented in:
     https://www.cs.bgu.ac.il/~inabd171/wiki.files/lecture20_handouts.pdf
     a lecture slide by prof. aryeh kontorovich and sivan sabato from bgu
 """
+
+# def _do_forward_backward_pass(transition_mat, state_output_distributions, initial_state_distributions,  observations_seq):
+#     # without rescaling
+#     corpus_length = len(observations_seq)
+#     number_of_states = len(transition_mat)
+#
+#     alphas = np.zeros((number_of_states, corpus_length), dtype=np.float)
+#     betas = np.zeros((number_of_states, corpus_length), dtype=np.float)
+#
+#     alphas[:, 0] = np.multiply(np.transpose(state_output_distributions[int(observations_seq[0] - 1)]), initial_state_distributions)
+#     for t in range(1, corpus_length):
+#         alphas[:, t] = \
+#             np.multiply(
+#                 np.matmul(transition_mat, alphas[:,t-1]),
+#                 np.transpose(state_output_distributions[int(observations_seq[t] - 1), :]))
+#
+#     betas[:, corpus_length - 1] = np.array([1] * number_of_states)
+#     for t in reversed(range(0, corpus_length - 1)):
+#         betas[:, t] = \
+#                     np.multiply(
+#                         np.matmul(
+#                             np.transpose(transition_mat),
+#                             np.transpose(state_output_distributions[int(observations_seq[t + 1] - 1), :])),
+#                         betas[:, t + 1])
+#     return alphas, betas
 
 def _do_forward_backward_pass(transition_mat, state_output_distributions, initial_state_distributions,  observations_seq):
     corpus_length = len(observations_seq)
@@ -62,6 +88,7 @@ def _calc_gammas_xis(transition_mat, state_output_distributions, initial_state_d
     return gammas, xis
 
 def _perform_estep(transition_mat, state_output_distributions, initial_state_distributions, observations):
+    # TODO:: Probably NOT here lies the bug --- uses the same gammas xis every time so 2nd run remains the same (see if thats relevant please)
     gammas = [0] * (len(observations)) # initialize an array of size l
     xis = [0] * (len(observations))    # initialize an array of size l
     for i in range(len(observations)):
@@ -100,10 +127,10 @@ def _update_transition_probs_mle(transition_mat, number_of_states):
     global transition_probs_mle
 
     prev_transition_probs_mle = deepcopy(transition_probs_mle)
-    for i in range(number_of_states):
-        row_sum = np.sum(transition_mat[:, i])
-        for j in range(number_of_states):
-            transition_probs_mle[i][j] = transition_mat[i, j] / row_sum
+    for j in range(number_of_states):
+        col_sum = np.sum(transition_mat[:, j])
+        for i in range(number_of_states):
+            transition_probs_mle[i][j] = transition_mat[i, j] / col_sum
 
 def _update_state_output_distributions(state_output_distributions, observations, gammas, L, number_of_states, m):
     sum_gammas_t_l_i_where_k_is_observed_at_index_t_in_observation_seq = 0
@@ -179,7 +206,19 @@ def _converged(number_of_states, m):
         return True
     else:
         return False
+def normalize_by_cols(mat):
+    for j in range(len(mat[0])):
+        col_sum = 0
+        for i in range(len(mat)):
+            col_sum += mat[i][j]
+        for i in range(len(mat)):
+            mat[i][j] = mat[i][j] / col_sum
+    return mat
 
+def _make_mat(dim1, dim2):
+
+    new_mat = [[random.random() for x in range(dim1)] for y in range(dim2)]
+    return normalize_by_cols(new_mat)
 
 """
 input: l sequences of observations;
@@ -187,7 +226,6 @@ input: l sequences of observations;
        the number of states in the hmm;
 output: estimation for hmm parameters
 """
-
 def baum_welch_algorithm(observations, m, num_of_states = 3):
     global transition_probs_mle
     global output_probs_mle
@@ -198,29 +236,33 @@ def baum_welch_algorithm(observations, m, num_of_states = 3):
     for i in range(L):
         observations[i] = np.array(observations[i], dtype=np.float)
 
-    transition_mat = np.array([[1/num_of_states] * num_of_states] * num_of_states, dtype=np.float)
+    transition_mat = np.array(_make_mat(dim1=num_of_states, dim2=num_of_states), dtype=np.float)
     initial_state_distributions = np.array([1/num_of_states] * num_of_states, dtype=np.float)
-    state_output_distributions  = np.array([[1/m] * num_of_states] * m, dtype=np.float)
+    state_output_distributions  = np.array(_make_mat(dim1=num_of_states, dim2=m), dtype=np.float)
 
-    transition_probs_mle = np.array([[0] * num_of_states] * num_of_states, dtype=np.float)
-    output_probs_mle     = np.array([[0] * num_of_states] * m, dtype=np.float)
-
-
+    transition_probs_mle = np.array(_make_mat(dim1=num_of_states, dim2=num_of_states), dtype=np.float)
+    output_probs_mle     = np.array(_make_mat(dim1=num_of_states, dim2=m), dtype=np.float)
+    i = 0
     while(True):
+        i = i + 1
         gammas, xis = \
             _perform_estep(transition_mat, state_output_distributions, initial_state_distributions, observations)
         initial_state_distributions, transition_mat, state_output_distributions = \
             _perform_mstep(transition_mat, state_output_distributions, initial_state_distributions, observations, gammas, xis, m)
+        transition_mat = deepcopy(transition_probs_mle)
+        state_output_distributions = deepcopy(output_probs_mle)
+        print("After " + str(i) + " EM steps:\n")
         print("initial_state_distributions   :\n", initial_state_distributions   , "\n\n",
               "transition_mat                :\n", transition_mat                , "\n\n",
               "state_output_distributions    :\n", state_output_distributions    , "\n\n\n\n",
-              "transition_probs_mle          :\n", transition_probs_mle          , "\n\n",
+              # "transition_probs_mle          :\n", transition_probs_mle          , "\n\n",
               "prev_transition_probs_mle     :\n", prev_transition_probs_mle     , "\n\n",
-              "output_probs_mle              :\n", output_probs_mle              , "\n\n",
-              "prev_output_probs_mle         :\n", prev_output_probs_mle         )
+              # "output_probs_mle              :\n", output_probs_mle              , "\n\n",
+              "prev_output_probs_mle         :\n", prev_output_probs_mle)
         if(_converged(num_of_states, m)):
             break
 
     return initial_state_distributions, transition_mat, state_output_distributions
 
-baum_welch_algorithm([[2, 2, 3, 4]], 4)
+# baum_welch_algorithm([[2, 1, 1, 4], [2, 2, 1, 1, 1, 4]], 4)
+# print(np.array(_make_mat(2, 3), dtype=np.float))
