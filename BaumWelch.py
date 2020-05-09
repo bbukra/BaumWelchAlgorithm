@@ -7,31 +7,6 @@ import random
     a lecture slide by prof. aryeh kontorovich and sivan sabato from bgu
 """
 
-# def _do_forward_backward_pass(transition_mat, state_output_distributions, initial_state_distributions,  observations_seq):
-#     # without rescaling
-#     corpus_length = len(observations_seq)
-#     number_of_states = len(transition_mat)
-#
-#     alphas = np.zeros((number_of_states, corpus_length), dtype=np.float)
-#     betas = np.zeros((number_of_states, corpus_length), dtype=np.float)
-#
-#     alphas[:, 0] = np.multiply(np.transpose(state_output_distributions[int(observations_seq[0] - 1)]), initial_state_distributions)
-#     for t in range(1, corpus_length):
-#         alphas[:, t] = \
-#             np.multiply(
-#                 np.matmul(transition_mat, alphas[:,t-1]),
-#                 np.transpose(state_output_distributions[int(observations_seq[t] - 1), :]))
-#
-#     betas[:, corpus_length - 1] = np.array([1] * number_of_states)
-#     for t in reversed(range(0, corpus_length - 1)):
-#         betas[:, t] = \
-#                     np.multiply(
-#                         np.matmul(
-#                             np.transpose(transition_mat),
-#                             np.transpose(state_output_distributions[int(observations_seq[t + 1] - 1), :])),
-#                         betas[:, t + 1])
-#     return alphas, betas
-
 def _do_forward_backward_pass(transition_mat, state_output_distributions, initial_state_distributions,  observations_seq):
     corpus_length = len(observations_seq)
     number_of_states = len(transition_mat)
@@ -263,6 +238,3 @@ def baum_welch_algorithm(observations, m, num_of_states = 3):
             break
 
     return initial_state_distributions, transition_mat, state_output_distributions
-
-# baum_welch_algorithm([[2, 1, 1, 4], [2, 2, 1, 1, 1, 4]], 4)
-# print(np.array(_make_mat(2, 3), dtype=np.float))
